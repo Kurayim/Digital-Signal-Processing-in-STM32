@@ -34,7 +34,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
-#define SIGNAL_LENGTH       128
+#define SIGNAL_LENGTH       64
 #define FILTER_TAP_NUM      29
 
 
@@ -67,6 +67,13 @@ const float32_t firCoeffs[FILTER_TAP_NUM] = {
    0.0677995, 0.0544983, 0.0403817, 0.0271259, 0.0161513, 0.0083847,
    0.0041585, 0.0031884, 0.0045681, 0.0070031, 0.0089389
 };
+
+/*  FFT */
+float32_t fft_input[SIGNAL_LENGTH];
+float32_t fft_output[SIGNAL_LENGTH];
+float32_t fft_magnitude[SIGNAL_LENGTH / 2];
+
+
 
 
 arm_fir_instance_f32 firFilter;
@@ -117,17 +124,35 @@ void processFIR(void)
   arm_fir_f32(&firFilter, inputSignal, outputSignal, SIGNAL_LENGTH);
 }
 
+/* --- اجرای FFT --- */
+void computeFFT(float32_t* timeDomain, float32_t* magnitudeOutput)
+{
+  arm_rfft_fast_instance_f32 fft_inst;
+  arm_rfft_fast_init_f32(&fft_inst, SIGNAL_LENGTH);
+
+  // محاسبه FFT
+  arm_rfft_fast_f32(&fft_inst, timeDomain, fft_output, 0); // forward FFT
+
+  // محاسبه دامنه طیف
+  for (int i = 0; i < SIGNAL_LENGTH / 2; i++) {
+    float32_t real = fft_output[2 * i];
+    float32_t imag = fft_output[2 * i + 1];
+    magnitudeOutput[i] = sqrtf(real * real + imag * imag);
+  }
+}
+
+
 
 
 bool CreateBuffeSample(uint8_t * BufferSample, uint32_t indexSample, int32_t sample)
 {
 
-/*      | 0  |  1 |  2 |  3 |  4 |  5 ||    6    |    7    |    8    |    9    ||    10    |    11    |    12    |    13    ||      14     |      15     |
+/*  | 0  |  1 |  2 |  3 |  4 |  5 ||    6    |    7    |    8    |    9    ||    10    |    11    |    12    |    13    ||      14     |      15     |
  *	|____|____|____|____|____|____||_________|_________|_________|_________||__________|__________|__________|__________||_____________|_____________|
- *	|    |    |    |    |    |    ||         |         |         |	       ||	   |	      |		 |          ||	           |		 |
+ *	|	 |    |    |    |    |    ||         | 		   |         |		   ||		   |	      |		     |		    ||			   |			 |
  *	| AA | 55 | 5A | A5 | BB | TP || Data[3] | Data[2] | Data[1] | Data[0] || Count[3] | Count[2] | Count[1] | Count[0] || CheckSum[1] | CheckSum[0] |
  *	|____|____|____|____|____|____||_________|_________|_________|_________||__________|__________|__________|__________||_____________|_____________|
- *       ////////////Header\\\\\\\\\\\  ////////////////Sample\\\\\\\\\\\\\\\\\  ////////////////Index Sample\\\\\\\\\\\\\\\  ////////Check Sum\\\\\\\\\\
+ *   ////////////Header\\\\\\\\\\\  ////////////////Sample\\\\\\\\\\\\\\\\\  ////////////////Index Sample\\\\\\\\\\\\\\\  ////////Check Sum\\\\\\\\\\
  */
 
 
@@ -232,12 +257,12 @@ bool CreateBuffeSample(uint8_t * BufferSample, uint32_t indexSample, int32_t sam
 bool CreateCommand(uint8_t * command_buffer , uint8_t command_type,uint8_t scalePow, uint8_t numSignal, uint32_t numSample ,uint16_t SmaplRate)
 {
 
-/*      | 0  |  1 |  2 |  3 |  4  |  5 ||      6       |     7     |   8   |   9   ||      10      ||      11      ||      12      ||      13      ||      14      ||      15     |
+/*  | 0  |  1 |  2 |  3 |  4  |  5 ||      6       |     7     |   8   |   9   ||      10      ||      11      ||      12      ||      13      ||      14      ||      15     |
  *	|____|____|____|____|_____|____||______________|___________|_______|_______||______________||______________||______________||______________||______________||_____________|
- *	|    |    |    |    |scale|    ||              |           | SAMPL | SAMPL ||	   	   ||	           ||		   ||		   ||	           ||	          |
+ *	|	 |    |    |    |scale|    ||         	   | 		   | SAMPL | SAMPL ||	   	       ||	           ||		       ||		       ||			   ||			  |
  *	| AA | 55 | 5A | A5 | Pow | TP || command_type | numSignal |RATE[1]|RATE[0]|| numSample[3] || numSample[2] || numSample[1] || numSample[0] || CheckSum[1]  || CheckSum[0] |
  *	|____|____|____|____|_____|____||______________|___________|_______|_______||______________||______________||______________||______________||______________||_____________|
- *       ////////////Header\\\\\\\\\\\\  ///////\\\\\\\ //////\\\\\ /// \\\ /// \\\  ////////////////////////Number Samples\\\\\\\\\\\\\\\\\\\\\\\|  //////////Check Sum\\\\\\\\\\
+ *   ////////////Header\\\\\\\\\\\\  ///////\\\\\\\ //////\\\\\ /// \\\ /// \\\  ////////////////////////Number Samples\\\\\\\\\\\\\\\\\\\\\\\  //////////Check Sum\\\\\\\\\\
  */
 
 
@@ -489,6 +514,10 @@ int main(void)
   generateSignal(1000.0f);
   processFIR();
 
+  computeFFT(inputSignal, fft_magnitude);
+
+  computeFFT(outputSignal, fft_magnitude);
+
 
 //  SendSignal(inputSignal, 100000, 1, SIGNAL_LENGTH);
 
@@ -508,9 +537,9 @@ int main(void)
 
 	  if(FlagKey)
 	  {
-		  SendSignal(inputSignal, 100000, 1, SIGNAL_LENGTH, 1000);
+		  SendSignal(inputSignal, 100000, 1, (SIGNAL_LENGTH / 2), 1000);
 		  HAL_Delay(200);
-		  SendSignal(outputSignal, 100000, 2, SIGNAL_LENGTH, 1000);
+//		  SendSignal(outputSignal, 100000, 2, (SIGNAL_LENGTH / 2), 1000);
 //		  counter++;
 //		  sprintf(data, "%u\r\n", counter);
 //		  CDC_Transmit_FS((uint8_t*)data, strlen(data));
