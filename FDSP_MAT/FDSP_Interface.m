@@ -1,7 +1,8 @@
+
 clear
 clc
 
-s = serialport("COM8", 115200);
+s = serialport("COM3", 115200);
 s.Timeout = 1000;
 byteCounter = 1;
 COM_START_SEND_SIGNAL = uint8('10');
@@ -20,7 +21,7 @@ ScaleCalculate = int32(0);
 NumPacketReceive = 0;
 indexReadExter = 0;
 CountSignal = 0;
-SampleRate = 0;
+SampleRate = [];
 
 
 
@@ -64,7 +65,7 @@ while true
                             );
                         NumSignal = data(8);
                         ScalsePow = data(5);
-                        SampleRate = bitor(bitshift(uint16(data(9)), 8), uint16(data(10)));
+                        SampleRate(NumSignal) = bitor(bitshift(uint16(data(9)), 8), uint16(data(10)));
 
                         if(data(7) == hex2dec(COM_START_SEND_SIGNAL))
                             IndexBufPack = 0
@@ -109,31 +110,44 @@ while true
             fprintf("Byte %d: %f\n", byteCounter, Signals(i));
             byteCounter = byteCounter + 1;
         end
+ 
+
+        fft_freqs = (0:(NumberSamples/2 - 1)) * (SampleRate / NumberSamples);
+        Y = Signals(1, :);  
+        Y_mag = abs(Y(1:NumberSamples/2)); 
+        plot(fft_freqs, Y_mag);
+        xlabel('Frequency (Hz)');
+        ylabel('Magnitude');
+        title('FFT of Signal');
+        grid on;
 
 
-if CountSignal >= 2
-    disp(Signals);
-    colors = ['r', 'g', 'b', 'k', 'm', 'c', 'y'];
-    TimSample = double(0:NumberSamples-1) / double(SampleRate);
 
-    for i = 1:CountSignal
-        colorIndex = mod(i-1, length(colors)) + 1;  % دور بزن روی رنگ‌ها اگر زیاد شدند
-        %%plot(TimSample, Signals(i, :), colors(i));
-        stem(TimSample, Signals(i, :), colors(i));
-        hold on;
-    end 
 
-    xlabel('Sample Index');
-    ylabel('Amplitude');
-    title('Overlayed Signals');
-    legendStrings = arrayfun(@(x) ['Signal ' num2str(x)], 1:CountSignal, 'UniformOutput', false);
-    legend(legendStrings);
-    grid on;
-    hold off;
-    datacursormode on;
-    CountSignal = 0;
-
-end
+% if CountSignal >= 2
+%     disp(Signals);
+%     colors = ['r', 'g', 'b', 'k', 'm', 'c', 'y'];
+%     %%TimSample = double(0:NumberSamples-1) / double(SampleRate);
+% 
+%     for i = 1:CountSignal
+%         TimSample = double(0:NumberSamples-1) / double(SampleRate(NumSignal));
+%         colorIndex = mod(i-1, length(colors)) + 1;  % دور بزن روی رنگ‌ها اگر زیاد شدند
+%         %%plot(TimSample, Signals(i, :), colors(i));
+%         stem(TimSample, Signals(i, :), colors(i));
+%         hold on;
+%     end 
+% 
+%     xlabel('Sample Index');
+%     ylabel('Amplitude');
+%     title('Overlayed Signals');
+%     legendStrings = arrayfun(@(x) ['Signal ' num2str(x)], 1:CountSignal, 'UniformOutput', false);
+%     legend(legendStrings);
+%     grid on;
+%     hold off;
+%     datacursormode on;
+%     CountSignal = 0;
+% 
+% end
 
 
 
@@ -143,6 +157,12 @@ end
 
     pause(0.01);
 end
+
+
+
+
+
+
 
 
 
